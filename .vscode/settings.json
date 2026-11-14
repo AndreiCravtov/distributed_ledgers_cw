@@ -1,0 +1,31 @@
+{
+  // nix
+  "nix.enableLanguageServer": true,
+  "nix.serverSettings": {
+    "nixd": {
+      "nixpkgs": {
+        "expr": "(builtins.getFlake \"path:${workspaceFolder}\").currentSystem.config._module.args.pkgs"
+      },
+      "options": {
+        "flake-parts": {
+          "expr": "(builtins.getFlake \"path:${workspaceFolder}\").debug.options"
+        },
+        "flake-parts-perSystem": {
+          "expr": "(builtins.getFlake \"path:${workspaceFolder}\").currentSystem.options"
+        }
+      }
+    }
+  },
+  "files.associations": {
+    "*.nix": "nix"
+  },
+
+  // solidity + foundry
+  "[solidity]": {
+    "editor.defaultFormatter": "NomicFoundation.hardhat-solidity",
+    "editor.formatOnSave": true
+  },
+  "solidity.formatter": "forge",
+  "solidity.packageDefaultDependenciesContractsDirectory": "src",
+  "solidity.packageDefaultDependenciesDirectory": "lib"
+}
