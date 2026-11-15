@@ -2,8 +2,8 @@
 pragma solidity ^0.8.24;
 
 import {Script} from "forge-std/Script.sol";
-import {HumanResources} from "../src/HumanResources.sol";
-import {IHumanResources} from "../src/IHumanResources.sol";
+import {HumanResources} from "@/HumanResources.sol";
+import {IHumanResources} from "@/IHumanResources.sol";
 
 interface SubmissionManager {
     event Submission(address indexed submitter, address indexed submission);

@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: GPL -3.0
 pragma solidity ^0.8.24;
 
-import {IHumanResources} from "./IHumanResources.sol";
+import {IHumanResources} from "@/IHumanResources.sol";
+import {Util} from "@/Util.sol";
 
 /// @notice Represents the employee information for the HR contract
 struct EmployeeInfo {
@@ -47,13 +48,7 @@ contract HumanResources is IHumanResources {
         _;
     }
 
-    /// @dev Throws if the sender is not an employee
-    modifier onlyEmployee() {
-        if (!employees[msg.sender].exists) {
-            revert NotAuthorized();
-        }
-        _;
-    }
+    receive() external payable {}
 
     /// Computes the accrued salary which was not already added to the salary total,
     /// from the timestamp the employee should be accruing salary.
@@ -99,7 +94,6 @@ contract HumanResources is IHumanResources {
     /// @param employee address of the employee
     function terminateEmployee(address employee) external override onlyManager {
         // get employee
-        assert(employee != address(0));
         EmployeeInfo memory e = employees[employee];
 
         // guard against terminating non(-active) employees
@@ -126,7 +120,26 @@ contract HumanResources is IHumanResources {
     /// Withdraws the salary of the employee
     /// This sends either USDC or ETH to the employee, depending on the employee's preference
     /// The salary accumulates with time (regardless of nights, weekends, and other non working hours) according to the employee weekly salary
-    function withdrawSalary() external override onlyEmployee {
+    function withdrawSalary() external override {
+        EmployeeInfo memory e = employees[msg.sender];
+
+        // both active and terminated employees can call this
+        if (!e.exists) {
+            revert NotAuthorized();
+        }
+
+        // if active employee: count accrued salary & update accrual timestamp
+        if (e.isActive) {
+            e.usdSalary_18x += accruedSalary(e);
+            e.accrueFrom_sec = block.timestamp;
+        }
+
+        // if no salary to withdraw, do nothing (as per spec)
+        if (e.usdSalary_18x == 0) {
+            employees[msg.sender] = e;
+            return;
+        }
+
         // ! ---- !
         // ! TODO !
         // ! ---- !
@@ -136,9 +149,17 @@ contract HumanResources is IHumanResources {
     /// By default, the salary is paid in USDC
     /// If the employee calls this function, future salary payment will be in ETH
     /// If he calls it again, future salary payment will be in USDC again
-    function switchCurrency() external override onlyEmployee {
-        employees[msg.sender].prefersUsd = !employees[msg.sender].prefersUsd;
-        emit CurrencySwitched(msg.sender, !employees[msg.sender].prefersUsd);
+    function switchCurrency() external override {
+        EmployeeInfo memory e = employees[msg.sender];
+
+        // as per spec, only active employees allowed to call this
+        if (!e.isActive) {
+            revert NotAuthorized();
+        }
+
+        e.prefersUsd = !e.prefersUsd;
+        employees[msg.sender] = e;
+        emit CurrencySwitched(msg.sender, !e.prefersUsd);
     }
 
     // Views
@@ -162,7 +183,12 @@ contract HumanResources is IHumanResources {
             usdSalary_18x += accruedSalary(e);
         }
 
-        return usdSalary_18x;
+        // salary preference
+        if (e.prefersUsd) {
+            return usdSalary_18x;
+        } else {
+            return Util.usdcToEth_18x(usdSalary_18x);
+        }
     }
 
     /// Returns the address of the HR manager

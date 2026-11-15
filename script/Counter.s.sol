@@ -2,7 +2,8 @@
 pragma solidity ^0.8.24;
 
 import {Script} from "forge-std/Script.sol";
-import {Counter} from "../src/Counter.sol";
+import {Counter} from "@/Counter.sol";
+import {IWETH9} from "@/IWETH9.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {AggregatorV3Interface} from "@chainlink/shared/interfaces/AggregatorV3Interface.sol";
 import {ISwapRouter} from "@uniswap/v3-periphery/contracts/interfaces/ISwapRouter.sol";
@@ -12,7 +13,7 @@ contract CounterScript is Script {
     AggregatorV3Interface public constant ETH_USD = AggregatorV3Interface(0x13e3Ee699D1909E989722E753853AE30b17e08c5);
     ISwapRouter public constant UNISWAP_ROUTER = ISwapRouter(0xE592427A0AEce92De3Edee1F18E0157C05861564);
     IERC20 public constant USDC = IERC20(0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85);
-    IERC20 public constant WETH9 = IERC20(0x4200000000000000000000000000000000000006);
+    IWETH9 public constant WETH9 = IWETH9(0x4200000000000000000000000000000000000006);
 
     Counter public counter;
 

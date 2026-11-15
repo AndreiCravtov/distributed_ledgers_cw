@@ -5,6 +5,7 @@ test = "test"
 script = "script"
 libs = ["lib"]
 remappings = [
+    "@/=src/",
     "@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/",
     "@chainlink/=lib/chainlink-evm/contracts/src/v0.8/",
     "@uniswap/v3-core/=lib/v3-core/",

@@ -2,8 +2,8 @@
 pragma solidity ^0.8.24;
 
 import {Test} from "forge-std/Test.sol";
-import {HumanResources} from "../src/HumanResources.sol";
-import {IHumanResources} from "../src/IHumanResources.sol";
+import {HumanResources} from "@/HumanResources.sol";
+import {IHumanResources} from "@/IHumanResources.sol";
 
 contract HumanResourcesTest is Test {
     event ManagerAddress(address indexed addr);
