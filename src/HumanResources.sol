@@ -117,6 +117,9 @@ contract HumanResources is IHumanResources {
         // perform termination
         employees[employee] = e;
         activeEmployeeCount -= 1;
+
+        // Accrual logic above makes no external calls.
+        // forge-lint: disable-next-line(reentrancy-events)
         emit EmployeeTerminated(employee);
     }
 
@@ -157,8 +160,9 @@ contract HumanResources is IHumanResources {
         if (e.prefersUsd) {
             SafeERC20.safeTransfer(Util.USDC, msg.sender, usdSalary);
 
-            // TODO: check EdStem for scaling clarifications
-            emit SalaryWithdrawn(msg.sender, !e.prefersUsd, usdSalary);
+            // Accounting state already committed before transfer.
+            // forge-lint: disable-next-line(reentrancy-events)
+            emit SalaryWithdrawn(msg.sender, !e.prefersUsd, usdSalary); // TODO: check EdStem for scaling clarifications
         } else {
             // calculate minimum out based on spec percentage
             uint256 expectedEth_x18x = Util.usdcToEth_18x(Util.usdcNative_to18x(usdSalary));
@@ -185,8 +189,9 @@ contract HumanResources is IHumanResources {
             Util.WETH9.withdraw(amountOut);
             Address.sendValue(payable(msg.sender), amountOut);
 
-            // TODO: check EdStem for scaling clarifications
-            emit SalaryWithdrawn(msg.sender, true, amountOut);
+            // Accounting state already committed before transfer.
+            // forge-lint: disable-next-line(reentrancy-events)
+            emit SalaryWithdrawn(msg.sender, true, amountOut); // TODO: check EdStem for scaling clarifications
         }
     }
 

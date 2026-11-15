@@ -21,8 +21,10 @@ library Util {
     /// @param usdc_18x USDC to be converted, scaled to 18 decimal points
     function usdcToEth_18x(uint256 usdc_18x) public view returns (uint256) {
         // 1 ETH : price USD*10^decimal
+        // forge-lint: disable-next-line(unused-return)
         (, int256 answer,,,) = ETH_USDC.latestRoundData(); // 1 ETH = this many USDC (in the decimals above)
         require(answer > 0, "Invalid oracle price");
+        // forge-lint: disable-next-line(unsafe-typecast)
         uint256 price = uint256(answer);
 
         // compute ETH to 18 decimal points
@@ -60,15 +62,17 @@ library Util {
         IUniswapV3Factory factory = IUniswapV3Factory(IPeripheryImmutableState(address(Util.UNISWAP_ROUTER)).factory());
 
         // range over fee candidates, to find the one with largest liquidity
-        address selectedPool;
-        uint24 selectedFee;
-        uint128 largestLiquidity;
+        address selectedPool = address(0);
+        uint24 selectedFee = 0;
+        uint128 largestLiquidity = 0;
 
         for (uint256 i; i < feeCandidates.length; i++) {
+            // forge-lint: disable-next-line(calls-loop)
             address candidate = factory.getPool(address(Util.USDC), address(Util.WETH9), feeCandidates[i]);
 
             if (candidate == address(0)) continue;
 
+            // forge-lint: disable-next-line(calls-loop)
             uint128 liquidity = IUniswapV3Pool(candidate).liquidity();
 
             if (liquidity > largestLiquidity) {
