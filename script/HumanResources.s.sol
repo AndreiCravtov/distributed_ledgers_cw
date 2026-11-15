@@ -39,7 +39,7 @@ contract HumanResourcesScript is Script {
         emit PoolDiscovered(pool, fee);
 
         // create contract and submit it (ensure HR manager is deployer)
-        assert(msg.sender == HR_MANAGER);
+        assert(msg.sender == HR_MANAGER); // TODO: remove this line before submission, this is just for me to check I am sending from my own account
         humanResources = new HumanResources(HR_MANAGER, fee);
         SUBMISSION_MANAGER.submit(address(humanResources));
 
