@@ -2,6 +2,7 @@
 pragma solidity ^0.8.24;
 
 import {AggregatorV3Interface} from "@chainlink/shared/interfaces/AggregatorV3Interface.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {IWETH9} from "@/IWETH9.sol";
 import {ISwapRouter} from "@uniswap/v3-periphery/contracts/interfaces/ISwapRouter.sol";
@@ -25,7 +26,7 @@ library Util {
         uint256 price = uint256(answer);
 
         // compute ETH to 18 decimal points
-        return (usdc_18x * 10 ** ETH_USDC.decimals()) / price;
+        return Math.mulDiv(usdc_18x, 10 ** ETH_USDC.decimals(), price);
     }
 
     /// Converts USDC scaled by 18 decimal points, to its native scale (i.e. 6 decimal points)

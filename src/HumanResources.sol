@@ -3,6 +3,7 @@ pragma solidity ^0.8.24;
 
 import {IHumanResources} from "@/IHumanResources.sol";
 import {Util} from "@/Util.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 import {ISwapRouter} from "@uniswap/v3-periphery/contracts/interfaces/ISwapRouter.sol";
@@ -41,7 +42,7 @@ contract HumanResources is IHumanResources {
     /// @param managerAddress address of the HR manager that will control this HR contract
     /// @param poolFee the pool fee to use for swapping USDC to WETH9, for salary conversions
     constructor(address managerAddress, uint24 poolFee) {
-        assert(managerAddress != address(0));
+        require(managerAddress != address(0), "Null address cannot be manager");
         manager = managerAddress;
         _poolFee = poolFee;
     }
@@ -60,7 +61,7 @@ contract HumanResources is IHumanResources {
     /// from the timestamp the employee should be accruing salary.
     /// @param e the employee record
     function accruedSalary(EmployeeInfo memory e) internal view returns (uint256) {
-        return ((block.timestamp - e.accrueFrom_sec) * e.weeklyUsdSalary_18x) / 1 weeks;
+        return Math.mulDiv(block.timestamp - e.accrueFrom_sec, e.weeklyUsdSalary_18x, 1 weeks);
     }
 
     // HR manager functions
@@ -72,7 +73,7 @@ contract HumanResources is IHumanResources {
     /// @param weeklyUsdSalary salary of the employee in USD scaled with 18 decimals
     function registerEmployee(address employee, uint256 weeklyUsdSalary) external override onlyManager {
         // get employee
-        assert(employee != address(0));
+        require(employee != address(0), "Cannot register null address as employee");
         EmployeeInfo memory e = employees[employee];
 
         // guard against adding already-active employees
@@ -161,7 +162,7 @@ contract HumanResources is IHumanResources {
         } else {
             // calculate minimum out based on spec percentage
             uint256 expectedEth_x18x = Util.usdcToEth_18x(Util.usdcNative_to18x(usdSalary));
-            uint256 amountOutMinimum = expectedEth_x18x * (100 - Util.SLIPPAGE_PERCENT) / 100;
+            uint256 amountOutMinimum = Math.mulDiv(expectedEth_x18x, 98, 100, Math.Rounding.Ceil);
 
             // get WETH9 from the swap
             SafeERC20.forceApprove(Util.USDC, address(Util.UNISWAP_ROUTER), usdSalary);
