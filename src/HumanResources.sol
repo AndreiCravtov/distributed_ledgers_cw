@@ -160,7 +160,7 @@ contract HumanResources is IHumanResources {
         if (e.prefersUsd) {
             SafeERC20.safeTransfer(Util.USDC, msg.sender, usdSalary);
 
-            // Accounting state already committed before transfer.
+            // Accounting committed -> callback events may precede this captured payout event
             // forge-lint: disable-next-line(reentrancy-events)
             emit SalaryWithdrawn(msg.sender, !e.prefersUsd, usdSalary); // TODO: check EdStem for scaling clarifications
         } else {
@@ -189,7 +189,7 @@ contract HumanResources is IHumanResources {
             Util.WETH9.withdraw(amountOut);
             Address.sendValue(payable(msg.sender), amountOut);
 
-            // Accounting state already committed before transfer.
+            // Accounting committed -> callback events may precede this captured payout event
             // forge-lint: disable-next-line(reentrancy-events)
             emit SalaryWithdrawn(msg.sender, true, amountOut); // TODO: check EdStem for scaling clarifications
         }
