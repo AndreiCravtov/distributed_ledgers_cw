@@ -12,7 +12,7 @@ contract HumanResourcesTest is Test {
 
     function setUp() public {
         emit ManagerAddress(msg.sender);
-        humanResources = new HumanResources(msg.sender);
+        humanResources = new HumanResources(msg.sender, 3000);
     }
 
     // function test_Increment() public {

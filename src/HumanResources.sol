@@ -3,6 +3,9 @@ pragma solidity ^0.8.24;
 
 import {IHumanResources} from "@/IHumanResources.sol";
 import {Util} from "@/Util.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {Address} from "@openzeppelin/contracts/utils/Address.sol";
+import {ISwapRouter} from "@uniswap/v3-periphery/contracts/interfaces/ISwapRouter.sol";
 
 /// @notice Represents the employee information for the HR contract
 struct EmployeeInfo {
@@ -30,14 +33,17 @@ struct EmployeeInfo {
 contract HumanResources is IHumanResources {
     /// The manager of this HR contract
     address private manager;
+    uint24 private _poolFee;
     mapping(address => EmployeeInfo) private employees;
     uint256 private activeEmployeeCount;
 
     /// Creates an new HumanResources contract instance
     /// @param managerAddress address of the HR manager that will control this HR contract
-    constructor(address managerAddress) {
+    /// @param poolFee the pool fee to use for swapping USDC to WETH9, for salary conversions
+    constructor(address managerAddress, uint24 poolFee) {
         assert(managerAddress != address(0));
         manager = managerAddress;
+        _poolFee = poolFee;
     }
 
     /// @dev Throws if the sender is not the manager
@@ -134,15 +140,53 @@ contract HumanResources is IHumanResources {
             e.accrueFrom_sec = block.timestamp;
         }
 
-        // if no salary to withdraw, do nothing (as per spec)
-        if (e.usdSalary_18x == 0) {
+        // get salary to withdraw + update stored salary/keep remainder
+        (uint256 usdSalary, uint256 rem_x18) = Util.usdc18x_toNative(e.usdSalary_18x);
+        if (usdSalary == 0) {
+            // if no salary to withdraw, do nothing (as per spec)
             employees[msg.sender] = e;
             return;
+        } else {
+            e.usdSalary_18x = rem_x18;
         }
 
-        // ! ---- !
-        // ! TODO !
-        // ! ---- !
+        employees[msg.sender] = e; // NOTE: do CEI pattern to prevent reentrancy attack
+
+        // pay based on currency preference
+        if (e.prefersUsd) {
+            SafeERC20.safeTransfer(Util.USDC, msg.sender, usdSalary);
+
+            // TODO: check EdStem for scaling clarifications
+            emit SalaryWithdrawn(msg.sender, !e.prefersUsd, usdSalary);
+        } else {
+            // calculate minimum out based on spec percentage
+            uint256 expectedEth_x18x = Util.usdcToEth_18x(Util.usdcNative_to18x(usdSalary));
+            uint256 amountOutMinimum = expectedEth_x18x * (100 - Util.SLIPPAGE_PERCENT) / 100;
+
+            // get WETH9 from the swap
+            SafeERC20.forceApprove(Util.USDC, address(Util.UNISWAP_ROUTER), usdSalary);
+            uint256 amountOut = Util.UNISWAP_ROUTER
+                .exactInputSingle(
+                    ISwapRouter.ExactInputSingleParams({
+                        tokenIn: address(Util.USDC),
+                        tokenOut: address(Util.WETH9),
+                        fee: _poolFee,
+                        recipient: address(this),
+                        deadline: block.timestamp,
+                        amountIn: usdSalary,
+                        amountOutMinimum: amountOutMinimum,
+                        sqrtPriceLimitX96: 0
+                    })
+                );
+            require(amountOut >= amountOutMinimum, "Could not get minimum required amount of WETH9");
+
+            // Unwrap the WETH9 and send ETH to employee
+            Util.WETH9.withdraw(amountOut);
+            Address.sendValue(payable(msg.sender), amountOut);
+
+            // TODO: check EdStem for scaling clarifications
+            emit SalaryWithdrawn(msg.sender, true, amountOut);
+        }
     }
 
     /// Switches the currency in which the employee receives the salary
@@ -185,6 +229,7 @@ contract HumanResources is IHumanResources {
 
         // salary preference
         if (e.prefersUsd) {
+            // TODO: check EdStem for scaling clarifications
             return usdSalary_18x;
         } else {
             return Util.usdcToEth_18x(usdSalary_18x);
