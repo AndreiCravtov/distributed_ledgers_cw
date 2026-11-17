@@ -4,15 +4,32 @@ Follow [the specification](../70017_1_spec.pdf) in printed page order. **Only ro
 
 The core plan has **28 concrete cases**. Use shared helpers and add event assertions to the action tests; there is no need for a second set of event-only tests. Complete these before considering optional extras.
 
+## Implemented suite and running it
+
+[HumanResources.t.sol](HumanResources.t.sol) implements all 28 core cases and all five optional rows. X5 is split into two arithmetic regression tests, giving **34 test functions**, including one fuzz test with 256 runs. Function names contain the case IDs below. The source follows spec order, although Foundry sorts test output by function name.
+
+[TestUtil.sol](TestUtil.sol) contains the shared fork setup, receiver contract, fixture state, and assertion helpers.
+
+Run from the project root:
+
+```sh
+nix develop --command forge build
+nix develop --command forge test -vv
+```
+
+Foundry reads `RPC_URL` from the root `.env`; `.env.example` provides the public submission value if the file needs recreating. An exported environment variable can override it for local runs. These fork tests need RPC access even when compiler artifacts are cached. `.env` is ignored by Git, so include it explicitly in the submission ZIP.
+
+**Testing requirement assessment:** The suite covers all eight interface functions, successful actions, each specified access/state error, public views of unknown/terminated employees, all four events, and the clarified currency decimals. Fork cases exercise actual Optimism USDC transfers, Chainlink reads, Uniswap swaps, WETH unwrapping, ETH delivery, slippage rejection, and rollback. Callback, remainder, funding, fuzz, and overflow cases add a small set of edge cases. This meets the spec's stated test-suite requirements; final packaging and deployment checks remain the separate manual tasks below.
+
 ## General setup — instructions, not tests
 
 - Use `test/HumanResources.t.sol`, one pinned Optimism fork, and manager, Alice, Bob, and outsider addresses.
-- Read `OPTIMISM_RPC_URL` from `.env` with `vm.envString()`. The submission value should be `https://mainnet.optimism.io`.
+- Read `RPC_URL` from `.env` with `vm.envString()`. The submission value should be `https://mainnet.optimism.io`.
 - Block **159584076**, with pool fee **3000**, worked in the audit. Keep the block fixed for reproducibility.
 - Deploy with the chosen manager. Use `vm.prank(manager)` for manager calls; the test contract's `msg.sender` is not necessarily the caller HR sees.
-- Use `700e18/week` as the usual salary: one day earns `100e18` USD18. Share helpers for registration, time advances, and funding.
+- Use `700e18/week` as the usual salary: one day earns `100e18` USD18. Use Forge `skip` and `deal` for time and funding; share contract-specific action and assertion helpers.
 - Use canonical USDC at `0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85`. Foundry `deal(token, account, amount)` can supply fixture funds; A1 exercises a normal transfer into HR.
-- Use `vm.getBlockTimestamp()` around repeated `vm.warp()` calls. The aggressive optimizer can cache repeated `block.timestamp` expressions within a test transaction.
+- Use Forge's inherited `skip(seconds)` for relative time advances. For absolute timestamps, use `vm.getBlockTimestamp()` around repeated `vm.warp()` calls; the aggressive optimizer can cache repeated `block.timestamp` expressions within a test transaction.
 - Use the actual forked USDC, WETH, feed, and router. Only mock the oracle answer when a controlled price is needed. One small receiver helper is sufficient for the callback tests.
 - In event assertions, check the HR emitter, indexed employee, currency flag where applicable, and amount. For ETH, record/decode the payout event and compare its amount with the recipient's ETH increase. Pool/router/token logs can coexist with HR logs.
 
