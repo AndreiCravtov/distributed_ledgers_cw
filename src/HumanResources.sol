@@ -162,7 +162,7 @@ contract HumanResources is IHumanResources {
 
             // Accounting committed -> callback events may precede this captured payout event
             // forge-lint: disable-next-line(reentrancy-events)
-            emit SalaryWithdrawn(msg.sender, !e.prefersUsd, usdSalary); // TODO: check EdStem for scaling clarifications
+            emit SalaryWithdrawn(msg.sender, !e.prefersUsd, usdSalary);
         } else {
             // calculate minimum out based on spec percentage
             uint256 expectedEth_x18x = Util.usdcToEth_18x(Util.usdcNative_to18x(usdSalary));
@@ -191,7 +191,7 @@ contract HumanResources is IHumanResources {
 
             // Accounting committed -> callback events may precede this captured payout event
             // forge-lint: disable-next-line(reentrancy-events)
-            emit SalaryWithdrawn(msg.sender, true, amountOut); // TODO: check EdStem for scaling clarifications
+            emit SalaryWithdrawn(msg.sender, true, amountOut);
         }
     }
 
@@ -216,7 +216,7 @@ contract HumanResources is IHumanResources {
 
     /// Returns the salary available for withdrawal for a given employee
     /// This returns the amount in the currency the employee prefers (USDC or ETH)
-    /// The amount must be scaled with the correct number of decimals for the currency
+    /// The amount uses 6 decimals for USDC and 18 decimals for ETH
     /// @param employee the address of the employee
     function salaryAvailable(address employee) external view override returns (uint256) {
         EmployeeInfo memory e = employees[employee];
@@ -235,8 +235,10 @@ contract HumanResources is IHumanResources {
 
         // salary preference
         if (e.prefersUsd) {
-            // TODO: check EdStem for scaling clarifications
-            return usdSalary_18x;
+            // The view omits fractional USDC; stored USD18 debt is unchanged.
+            // forge-lint: disable-next-line(unused-return)
+            (uint256 usdcAmount,) = Util.usdc18x_toNative(usdSalary_18x);
+            return usdcAmount;
         } else {
             return Util.usdcToEth_18x(usdSalary_18x);
         }

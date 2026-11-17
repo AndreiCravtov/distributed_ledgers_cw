@@ -16,17 +16,21 @@ The core plan has **28 concrete cases**. Use shared helpers and add event assert
 - Use the actual forked USDC, WETH, feed, and router. Only mock the oracle answer when a controlled price is needed. One small receiver helper is sufficient for the callback tests.
 - In event assertions, check the HR emitter, indexed employee, currency flag where applicable, and amount. For ETH, record/decode the payout event and compare its amount with the recipient's ETH increase. Pool/router/token logs can coexist with HR logs.
 
-### Scaling assumptions — expectations used by the tests
+### Staff clarifications — expectations used by the tests
 
-Keep these in one helper/constants area pending staff clarification:
+Keep these confirmed units in one helper/constants area:
 
 | Quantity | Current expectation |
 | --- | --- |
 | Weekly salary and internal USD | 18 decimals |
-| `salaryAvailable()` in USDC / ETH mode | 18 / 18 decimals |
+| `salaryAvailable()` in USDC / ETH mode | 6 / 18 decimals |
 | Actual USDC / ETH payment | 6 / 18 decimals |
 | `SalaryWithdrawn.amount` for USDC / ETH | 6 / 18 decimals |
 | Counts and timestamps | Ordinary counts and Unix seconds |
+
+**Rounding guidance:** Staff accepts retaining or discarding sub-USDC remainders. This implementation retains them internally: the USDC view truncates to 6 decimals, while the ETH view converts the full USD18 debt and may show dust after payment. ETH grading uses a small, unspecified tolerance; keep exact assertions for controlled oracle calculations and use the slippage bound for actual swap output. Preserve precision in intermediate calculations.
+
+**Error guidance:** Additional custom errors, including library errors, are allowed. Where the spec requires a named error, assert that exact error and check authorization before other failure conditions. Incorporate these assertions into the access tests below.
 
 ## Assumptions and access clarification — pages 1–2
 
@@ -45,7 +49,7 @@ Keep these in one helper/constants area pending staff clarification:
 | Test | Covers | Scenario | Expected result |
 | --- | --- | --- | --- |
 | 1A — Chosen manager | Constructor-set manager; public getter | Deploy with the manager address, then call `hrManager()` as an outsider. | Returns the chosen manager without reverting. |
-| 1B — Manager-only actions | Registration/termination access; exact error | As an outsider, attempt registration and termination. Repeat as a registered employee who is not manager. | Every call reverts with `NotAuthorized`; employee records/count remain unchanged. |
+| 1B — Manager-only actions | Registration/termination access; exact error and check order | As an outsider, attempt registration and termination. Repeat as a registered employee who is not manager. Include registration of an already-active employee and termination of an unknown address. | Every call reverts with `NotAuthorized`, taking precedence over employee-state errors; employee records/count remain unchanged. |
 | 1C — Manager unchanged | Manager cannot change during normal operations | As manager, register, terminate, and re-register Alice; read `hrManager()` after each step. | Manager address is unchanged throughout. |
 
 ## 2. Registering and managing employees — page 2
@@ -56,8 +60,8 @@ Keep these in one helper/constants area pending staff clarification:
 | --- | --- | --- | --- |
 | 2A — Register | USD18 salary input; registration metadata; registration event | Register Alice at `700e18`. | Salary `700e18`, `employedSince` equals registration time, `terminatedAt = 0`, active count `1`; emits `EmployeeRegistered(Alice, 700e18)`. |
 | 2B — Duplicate registration | Already-active employee error | Register Alice again while she is active. | `EmployeeAlreadyRegistered`; salary, timestamps, and count are unchanged. |
-| 2C — Rehire with unpaid debt | Rehire restarts accrual; gap earns nothing; unpaid debt survives | Alice earns one day at `700e18/week`, is terminated, waits a week, is rehired at `1400e18/week`, then works one day. Do not withdraw between periods. | USD18 balance `300e18`; salary updated to `1400e18`; `employedSince` is the rehire time and `terminatedAt = 0`. |
-| 2D — Rehire resets preference | Default USDC restored on re-registration | Alice earns a day, switches to ETH, is terminated and rehired, then immediately withdraws. | Her retained debt is shown as `100e18` in USDC mode and pays `100e6` USDC; no ETH payment. |
+| 2C — Rehire with unpaid debt | Rehire restarts accrual; gap earns nothing; unpaid debt survives | Alice earns one day at `700e18/week`, is terminated, waits a week, is rehired at `1400e18/week`, then works one day. Do not withdraw between periods. | USDC salary view is `300e6`; salary metadata is updated to `1400e18`; `employedSince` is the rehire time and `terminatedAt = 0`. |
+| 2D — Rehire resets preference | Default USDC restored on re-registration | Alice earns a day, switches to ETH, is terminated and rehired, then immediately withdraws. | Her retained debt is shown as `100e6` in USDC mode and pays `100e6` USDC; no ETH payment. |
 
 ### `terminateEmployee`
 
@@ -65,7 +69,7 @@ Keep these in one helper/constants area pending staff clarification:
 
 | Test | Covers | Scenario | Expected result |
 | --- | --- | --- | --- |
-| 2E — Terminate and freeze | Stop accrual; preserve debt; termination timestamp/event | Terminate Alice after one day; advance another week. | Emits `EmployeeTerminated(Alice)`; termination time is recorded; count becomes `0`; USD18 debt stays `100e18`. |
+| 2E — Terminate and freeze | Stop accrual; preserve debt; termination timestamp/event | Terminate Alice after one day; advance another week. | Emits `EmployeeTerminated(Alice)`; termination time is recorded; count becomes `0`; USDC salary view stays `100e6`. |
 | 2F — Invalid termination | Unknown and already-terminated employee errors | Terminate an unknown address; also try terminating Alice twice. | Invalid calls revert with `EmployeeNotRegistered`; count remains correct. |
 | 2G-USDC — Former employee withdraws USDC | Withdrawal after termination | Terminate Alice after one day's earnings, wait a week, then withdraw as Alice in USDC mode. | Pays `100e6` USDC with the correct withdrawal event; no gap accrual; remaining available balance is zero. |
 | 2G-ETH — Former employee withdraws ETH | Withdrawal after termination in ETH mode | Switch Alice to ETH before terminating her after one day's earnings; wait a week and withdraw. | Pays ETH for only the earned `100e18` USD debt, meets the oracle minimum, emits the ETH withdrawal event, and clears the payable debt. |
@@ -78,8 +82,8 @@ Keep these in one helper/constants area pending staff clarification:
 
 | Test | Covers | Scenario | Expected result |
 | --- | --- | --- | --- |
-| 3A — Seconds and weeks | Linear accrual over full and partial weeks | Register at `700e18/week`. Read after one second, one day, one week, and one week plus one day, without withdrawing between checkpoints. | Each balance equals `700e18 * elapsed / 604800`. |
-| 3B — Overnight/weekend accrual | No working-hours or weekend exclusions | Register at a Friday 17:00 UTC fixture timestamp; advance 64 hours to Monday 09:00 UTC. | Earns `700e18 * 64 / 168`, including all overnight and weekend hours. |
+| 3A — Seconds and weeks | Linear accrual over full and partial weeks; USDC view scaling | Register at `700e18/week`. Read after one second, one day, one week, and one week plus one day, without withdrawing between checkpoints. | Each USDC salary view equals `(700e18 * elapsed / 604800) / 1e12`, using integer division. |
+| 3B — Overnight/weekend accrual | No working-hours or weekend exclusions | Register at a Friday 17:00 UTC fixture timestamp; advance 64 hours to Monday 09:00 UTC. | USDC salary view is `(700e18 * 64 / 168) / 1e12`, including all overnight and weekend hours. |
 
 ### `withdrawSalary`
 
@@ -87,7 +91,7 @@ Keep these in one helper/constants area pending staff clarification:
 | --- | --- | --- | --- |
 | 3C-USDC — Active USDC payout | Default currency; native decimals; deduction/event | Fund HR, let active Alice earn one day, and withdraw without switching. | Alice gains `100e6` USDC; HR loses `100e6`; available salary becomes zero; emits one HR `SalaryWithdrawn(Alice, false, 100e6)`. |
 | 3C-ETH — Active ETH payout | Preferred currency; real USDC swap; WETH unwrap; ETH/event | Fund HR with USDC only, switch Alice to ETH, let her earn a day, then withdraw through the real router. | HR spends `100e6` USDC; Alice gains ETH meeting the oracle minimum and gains no WETH; no payout WETH/ETH is left in HR; debt clears; the event records the actual ETH received. |
-| 3D-access — Outsider withdrawal | Withdrawal restricted to current/former employees | Call `withdrawSalary()` from a never-registered address. | Reverts with `NotAuthorized`; no funds move. |
+| 3D-access — Outsider withdrawal | Withdrawal restricted to current/former employees; auth check first | Call `withdrawSalary()` from a never-registered address while HR has no funds and that address has no salary. | Reverts with `NotAuthorized`, taking precedence over zero-salary or funding failures; no funds move. |
 | 3D-zero — Zero and repeated withdrawal | No-payment behavior when nothing is payable | Withdraw immediately after registration. Separately, withdraw again immediately after a complete payout. | Current implementation returns without another payment; balances stay unchanged and no additional withdrawal event is emitted. |
 | 3F — Callback withdrawal attempt | Reentrancy-safe ETH payment | Register a receiver contract that attempts one nested withdrawal from `receive()`; catch any inner revert so the outer payment can finish. | Original salary paid exactly once; no second payment or restored salary balance. |
 
@@ -100,7 +104,7 @@ Keep these in one helper/constants area pending staff clarification:
 | 3G-toggle — Switch twice | USDC/ETH toggle and preference events | Active Alice switches USDC → ETH → USDC. | Views follow the selected currency; emits `CurrencySwitched(Alice, true)` then `CurrencySwitched(Alice, false)`. |
 | 3G-access — Switching restrictions | Only active employees may switch | Attempt switching as an outsider and as a terminated employee. | Both revert with `NotAuthorized`. |
 | 3H — Switch accumulated debt | No automatic withdrawal; old debt follows new preference | Accrue a day in default USDC mode, switch to ETH, then withdraw without advancing time. | Switching itself moves no funds and emits no withdrawal event; the next withdrawal pays the full previously earned debt in ETH. |
-| 3I — Reprice unpaid salary | Current ETH price in views; internal USD accounting | Fix debt at `100e18` USD18; mock prices of $2,000 and $4,000 per ETH, reading the ETH view at each. Switch back to USDC without paying. | ETH views are `0.05 ether` and `0.025 ether`; USD18 view remains `100e18`. |
+| 3I — Reprice unpaid salary | Current ETH price in views; internal USD accounting | Fix debt at `100e18` USD18; mock prices of $2,000 and $4,000 per ETH, reading the ETH view at each. Switch back to USDC without paying. | ETH views are `0.05 ether` and `0.025 ether`; USDC view is `100e6`. |
 
 **Coverage references:** Default USDC is tested in 3C-USDC and preference reset in 2D. Test 4C changes the price before withdrawal to verify the payout protection also uses the current answer.
 
@@ -178,8 +182,8 @@ Pick a few if time remains. The full audit's large invariant campaigns are unnec
 | --- | --- | --- | --- |
 | X1 — Rejected ETH | Payment failure rollback | Receiver contract rejects ETH after a real swap. | Withdrawal reverts; the preceding swap, salary deduction, and asset movements all roll back. |
 | X2 — Insufficient funding | Debt survives a failed payment | Attempt payment with insufficient HR USDC; then fund HR and retry. | First attempt reverts without losing debt; retry pays successfully. |
-| X3 — Remainder | Native-token rounding and repeated payouts | Earn `100e18 + 123` USD18, withdraw USDC, then immediately withdraw again. | Pays `100e6` once, retains `123` internally, and pays nothing on the second call. |
-| X4 — Small accrual fuzz | Ordinary salary/time combinations | Fuzz ordinary salaries and elapsed times for about 256 cases. | View matches an independent linear-accrual calculation. |
+| X3 — Remainder | Native-token rounding, repeated payouts, and accepted ETH dust | Earn `100e18 + 123456789` USD18. Without advancing time again, record the USDC view, withdraw twice, then switch to ETH with a mocked $2,000 price. | Initial USDC view is `100e6`; pays `100e6` once, retains `123456789` internally, then USDC view is zero and the second withdrawal pays nothing. The ETH view of the retained remainder is `123456789 / 2000 = 61728` wei. |
+| X4 — Small accrual fuzz | Ordinary salary/time combinations | Fuzz ordinary salaries and elapsed times for about 256 cases. | USDC view matches independently calculated USD18 accrual divided by `1e12`; ETH view matches conversion of the full USD18 accrual. |
 | X5 — Overflow regressions | Previously discovered arithmetic edge cases | Reuse the two short audit cases for a large representable accrual and USD-to-ETH conversion. | Correct representable results, without intermediate-overflow reverts. |
 
 **Audit material to adapt:** `/tmp/hr-audit-v2-fork/test/ForkAudit.t.sol` has integration/rollback examples; `/tmp/hr-audit-v2-main/test/audit/Adversarial.t.sol` has the receiver helper; `/tmp/hr-audit-v2-state/test/WideAudit.t.sol` has arithmetic regressions. The saved audit ZIP also contains these harnesses if the temporary paths disappear. Copy only the small cases needed for this plan.
