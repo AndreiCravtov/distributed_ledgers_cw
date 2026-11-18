@@ -7,6 +7,7 @@ import {HumanResources} from "@/HumanResources.sol";
 import {IHumanResources} from "@/IHumanResources.sol";
 import {Util} from "@/Util.sol";
 import {AggregatorV3Interface} from "@chainlink/shared/interfaces/AggregatorV3Interface.sol";
+import {ISwapRouter} from "@uniswap/v3-periphery/contracts/interfaces/ISwapRouter.sol";
 
 /// @dev Used for a nested withdrawal attempt or a rejected ETH payment.
 contract EmployeeReceiver {
@@ -52,6 +53,7 @@ abstract contract TestUtil is Test {
     }
 
     uint256 internal constant FORK_BLOCK = 159584076;
+    uint24 internal constant POOL_FEE = 3000;
     uint256 internal constant WEEKLY_SALARY_USD18 = 700e18;
     uint256 internal constant USD18_PER_USDC_UNIT = 1e12;
     bytes32 internal constant WITHDRAWAL_EVENT = keccak256("SalaryWithdrawn(address,bool,uint256)");
@@ -73,7 +75,7 @@ abstract contract TestUtil is Test {
         alice = makeAddr("coursework-hr-test-alice");
         bob = makeAddr("coursework-hr-test-bob");
         outsider = makeAddr("coursework-hr-test-outsider");
-        hr = new HumanResources(manager, 3000);
+        hr = new HumanResources(manager, POOL_FEE);
     }
 
     // Shared fixtures and assertions. Expected values do not call production Util helpers.
@@ -206,6 +208,20 @@ abstract contract TestUtil is Test {
         uint256 minimumEth = (expectedEth * 98 + 99) / 100; // 98% rounded upward.
         assertEq(address(hr).balance, 0, "Fixture starts without HR ETH");
         assertEq(Util.WETH9.balanceOf(address(hr)), 0, "Fixture starts without HR WETH");
+
+        // Check the router's exact protection, even when the market would give a good price anyway.
+        ISwapRouter.ExactInputSingleParams memory expectedSwap = ISwapRouter.ExactInputSingleParams({
+            tokenIn: address(Util.USDC),
+            tokenOut: address(Util.WETH9),
+            fee: POOL_FEE,
+            recipient: address(hr),
+            deadline: vm.getBlockTimestamp(),
+            amountIn: expectedUsdcSpent,
+            amountOutMinimum: minimumEth,
+            sqrtPriceLimitX96: 0
+        });
+        vm.expectCall(address(Util.UNISWAP_ROUTER), abi.encodeCall(ISwapRouter.exactInputSingle, (expectedSwap)));
+
         vm.recordLogs();
         _withdrawSalary(employee);
         paid = employee.balance - ethBefore;

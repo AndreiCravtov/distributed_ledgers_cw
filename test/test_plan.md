@@ -132,7 +132,7 @@ Keep these confirmed units in one helper/constants area:
 | 4A — Actual Chainlink conversion | Specified feed; oracle decimal scaling | At the pinned fork, read the actual ETH/USD feed's decimals and positive answer. Compare an ordinary employee's ETH salary view with an independent calculation. | View equals `USD18 * 10**feedDecimals / answer`. |
 | 4C — Unfavorable swap pricing | Oracle protection; greater-than-2% shortfall reverts | With unpaid ETH-mode salary, mock only the oracle answer to half its real value, leaving the real pool unchanged. Capture balances and salary after installing the mock, then withdraw. | Swap reverts; available salary, HR/employee token and ETH balances, and router allowance equal their pre-call values. |
 
-**Assertions to include in 3C-ETH (the Uniswap integration bullet):** Use the actual Optimism router, WETH, and native USDC contracts. Calculate the expected ETH from the USD value of USDC spent; check `paidEth >= ceil(expectedEth * 98 / 100)`. One validated fee tier is sufficient. Do not assert exact equality between AMM output and oracle estimate.
+**Assertions included in 3C-ETH (the Uniswap integration bullet):** Use the actual Optimism router, WETH, and native USDC contracts. Calculate the expected ETH from the USD value of USDC spent; check `paidEth >= ceil(expectedEth * 98 / 100)`. Expect the router call to contain exactly that `amountOutMinimum`, so weakening the configured protection also fails the test. One validated fee tier is sufficient. Do not assert exact equality between AMM output and oracle estimate.
 
 **Scope note:** The spec waives oracle freshness best practices. No freshness or sequencer test is needed for this plan.
 
