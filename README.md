@@ -34,7 +34,7 @@ forge build
 forge test -vv
 ```
 
-Alternatively, enter `nix develop` first to use the included development environment. Tests read `RPC_URL` from the root `.env` and fork Optimism at block `159584076`. The submission configuration is:
+Tests read `RPC_URL` from the root `.env` and fork Optimism at block `159584076`. The submission configuration is:
 
 ```dotenv
 RPC_URL=https://mainnet.optimism.io
