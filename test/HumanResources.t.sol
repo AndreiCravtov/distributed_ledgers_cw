@@ -5,10 +5,10 @@ import {IHumanResources} from "@/IHumanResources.sol";
 import {Util} from "@/Util.sol";
 import {TestUtil, EmployeeReceiver} from "./TestUtil.sol";
 
-/// @notice Case IDs follow test_plan.md. Each test starts from the same Optimism block.
+/// @notice Each test starts from the same Optimism block.
 contract HumanResourcesTest is TestUtil {
     // Assumptions: ordinary funding with canonical Util.USDC.
-    function test_A1_FundThroughNormalUsdcTransfer() public {
+    function test_FundThroughNormalUsdcTransfer() public {
         deal(address(Util.USDC), manager, 1000e6);
         vm.prank(manager);
         assertTrue(Util.USDC.transfer(address(hr), 1000e6));
@@ -16,13 +16,13 @@ contract HumanResourcesTest is TestUtil {
         assertEq(Util.USDC.balanceOf(manager), 0);
     }
 
-    // 1. Contract setup and role management.
-    function test_1A_ManagerGetterIsPublic() public {
+    // Contract setup and role management.
+    function test_ManagerGetterIsPublic() public {
         vm.prank(outsider);
         assertEq(hr.hrManager(), manager);
     }
 
-    function test_1B_ManagerOnlyActionsAndErrorPrecedence() public {
+    function test_ManagerOnlyActionsAndErrorPrecedence() public {
         _registerEmployee(alice, WEEKLY_SALARY_USD18);
         EmployeeSnapshot memory beforeState = _snapshotEmployeeState(alice);
         address[2] memory callers = [outsider, alice];
@@ -47,7 +47,7 @@ contract HumanResourcesTest is TestUtil {
         assertEq(hr.getActiveEmployeeCount(), 1);
     }
 
-    function test_1C_ManagerRemainsUnchanged() public {
+    function test_ManagerRemainsUnchanged() public {
         _registerEmployee(alice, WEEKLY_SALARY_USD18);
         assertEq(hr.hrManager(), manager);
         _terminateEmployee(alice);
@@ -56,8 +56,8 @@ contract HumanResourcesTest is TestUtil {
         assertEq(hr.hrManager(), manager);
     }
 
-    // 2. Registering and managing employees.
-    function test_2A_RegisterMetadataAndEvent() public {
+    // Registering and managing employees.
+    function test_RegisterMetadataAndEvent() public {
         uint256 registeredAt = vm.getBlockTimestamp();
 
         vm.expectEmit(true, false, false, true, address(hr));
@@ -69,7 +69,7 @@ contract HumanResourcesTest is TestUtil {
         assertEq(hr.salaryAvailable(alice), 0);
     }
 
-    function test_2B_DuplicateRegistrationPreservesState() public {
+    function test_DuplicateRegistrationPreservesState() public {
         _registerEmployee(alice, WEEKLY_SALARY_USD18);
         skip(1 days);
         EmployeeSnapshot memory beforeState = _snapshotEmployeeState(alice);
@@ -81,7 +81,7 @@ contract HumanResourcesTest is TestUtil {
         assertEq(hr.getActiveEmployeeCount(), 1);
     }
 
-    function test_2C_RehirePreservesDebtAndExcludesEmploymentGap() public {
+    function test_RehirePreservesDebtAndExcludesEmploymentGap() public {
         _registerEmployee(alice, WEEKLY_SALARY_USD18);
         skip(1 days);
         _terminateEmployee(alice);
@@ -98,7 +98,7 @@ contract HumanResourcesTest is TestUtil {
         _withdrawSalaryAndAssertUsdcPayout(alice, 300e6);
     }
 
-    function test_2D_RehireResetsEthPreferenceToUsdc() public {
+    function test_RehireResetsEthPreferenceToUsdc() public {
         _registerEmployee(alice, WEEKLY_SALARY_USD18);
         skip(1 days);
         _switchCurrency(alice);
@@ -110,7 +110,7 @@ contract HumanResourcesTest is TestUtil {
         _withdrawSalaryAndAssertUsdcPayout(alice, 100e6);
     }
 
-    function test_2E_TerminationFreezesDebtAndEmitsEvent() public {
+    function test_TerminationFreezesDebtAndEmitsEvent() public {
         uint256 registeredAt = vm.getBlockTimestamp();
         _registerEmployee(alice, WEEKLY_SALARY_USD18);
         skip(1 days);
@@ -128,7 +128,7 @@ contract HumanResourcesTest is TestUtil {
         assertEq(hr.salaryAvailable(alice), 100e6);
     }
 
-    function test_2F_UnknownAndRepeatedTerminationRevert() public {
+    function test_UnknownAndRepeatedTerminationRevert() public {
         vm.expectRevert(IHumanResources.EmployeeNotRegistered.selector);
         _terminateEmployee(alice);
         assertEq(hr.getActiveEmployeeCount(), 0);
@@ -145,7 +145,7 @@ contract HumanResourcesTest is TestUtil {
         assertEq(hr.getActiveEmployeeCount(), 0);
     }
 
-    function test_2G_TerminatedEmployeeWithdrawsUsdc() public {
+    function test_TerminatedEmployeeWithdrawsUsdc() public {
         _prepareFundedOneDaySalary({employee: alice, ethMode: false});
         _terminateEmployee(alice);
         skip(1 weeks);
@@ -153,7 +153,7 @@ contract HumanResourcesTest is TestUtil {
         assertEq(hr.salaryAvailable(alice), 0);
     }
 
-    function test_2G_TerminatedEmployeeWithdrawsEth() public {
+    function test_TerminatedEmployeeWithdrawsEth() public {
         _prepareFundedOneDaySalary({employee: alice, ethMode: true});
         _terminateEmployee(alice);
         uint256 frozenEth = hr.salaryAvailable(alice);
@@ -163,8 +163,8 @@ contract HumanResourcesTest is TestUtil {
         assertEq(hr.salaryAvailable(alice), 0);
     }
 
-    // 3. Accumulation, withdrawal, and currency switching.
-    function test_3A_AccrualAtSecondDayWeekAndPartialWeek() public {
+    // Accumulation, withdrawal, and currency switching.
+    function test_AccrualAtSecondDayWeekAndPartialWeek() public {
         _registerEmployee(alice, WEEKLY_SALARY_USD18);
         uint256 start = vm.getBlockTimestamp();
         uint256[4] memory elapsed = [uint256(1), 1 days, 1 weeks, 8 days];
@@ -174,14 +174,14 @@ contract HumanResourcesTest is TestUtil {
         }
     }
 
-    function test_3B_AccrualIncludesNightsAndWeekend() public {
+    function test_AccrualIncludesNightsAndWeekend() public {
         vm.warp(1730480400); // Friday 2024-11-01, 17:00 UTC.
         _registerEmployee(alice, WEEKLY_SALARY_USD18);
         skip(64 hours);
         assertEq(hr.salaryAvailable(alice), WEEKLY_SALARY_USD18 * 64 / 168 / USD18_PER_USDC_UNIT);
     }
 
-    function test_3C_ActiveUsdcPayoutAndEvent() public {
+    function test_ActiveUsdcPayoutAndEvent() public {
         _prepareFundedOneDaySalary({employee: alice, ethMode: false});
         _withdrawSalaryAndAssertUsdcPayout(alice, 100e6);
         assertEq(hr.salaryAvailable(alice), 0);
@@ -190,13 +190,13 @@ contract HumanResourcesTest is TestUtil {
         assertEq(hr.salaryAvailable(alice), 100e6);
     }
 
-    function test_3C_ActiveEthPayoutUsesRealSwapAndEvent() public {
+    function test_ActiveEthPayoutUsesRealSwapAndEvent() public {
         _prepareFundedOneDaySalary({employee: alice, ethMode: true});
         _withdrawSalaryAndAssertEthPayout(alice, 100e6);
         assertEq(hr.salaryAvailable(alice), 0);
     }
 
-    function test_3D_OutsiderWithdrawalChecksAuthorizationFirst() public {
+    function test_OutsiderWithdrawalChecksAuthorizationFirst() public {
         vm.expectRevert(IHumanResources.NotAuthorized.selector);
         _withdrawSalary(outsider);
         assertEq(Util.USDC.balanceOf(address(hr)), 0);
@@ -204,7 +204,7 @@ contract HumanResourcesTest is TestUtil {
         assertEq(hr.salaryAvailable(outsider), 0);
     }
 
-    function test_3D_ZeroAndRepeatedWithdrawalsDoNotPayOrEmit() public {
+    function test_ZeroAndRepeatedWithdrawalsDoNotPayOrEmit() public {
         _registerEmployee(alice, WEEKLY_SALARY_USD18);
         deal(address(Util.USDC), address(hr), 1000e6);
         _withdrawSalaryAndAssertNoPayment(alice);
@@ -221,7 +221,7 @@ contract HumanResourcesTest is TestUtil {
         _withdrawSalaryAndAssertNoPayment(alice);
     }
 
-    function test_3F_CallbackCannotWithdrawSalaryTwice() public {
+    function test_CallbackCannotWithdrawSalaryTwice() public {
         EmployeeReceiver receiver = new EmployeeReceiver({target: hr, rejectEthPayment: false});
         _prepareFundedOneDaySalary({employee: address(receiver), ethMode: true});
 
@@ -233,7 +233,7 @@ contract HumanResourcesTest is TestUtil {
         _withdrawSalaryAndAssertNoPayment(address(receiver));
     }
 
-    function test_3G_SwitchTwiceChangesViewsAndEmitsEvents() public {
+    function test_SwitchTwiceChangesViewsAndEmitsEvents() public {
         _registerEmployee(alice, WEEKLY_SALARY_USD18);
         skip(1 days);
         assertEq(hr.salaryAvailable(alice), 100e6);
@@ -249,7 +249,7 @@ contract HumanResourcesTest is TestUtil {
         assertEq(hr.salaryAvailable(alice), 100e6);
     }
 
-    function test_3G_OnlyActiveEmployeesCanSwitch() public {
+    function test_OnlyActiveEmployeesCanSwitch() public {
         vm.expectRevert(IHumanResources.NotAuthorized.selector);
         _switchCurrency(outsider);
 
@@ -263,7 +263,7 @@ contract HumanResourcesTest is TestUtil {
         _assertEmployeeStateUnchanged(alice, beforeState);
     }
 
-    function test_3H_SwitchDoesNotPayAndOldDebtUsesNewCurrency() public {
+    function test_SwitchDoesNotPayAndOldDebtUsesNewCurrency() public {
         _prepareFundedOneDaySalary({employee: alice, ethMode: false});
         uint256 usdcBefore = Util.USDC.balanceOf(address(hr));
         uint256 ethBefore = alice.balance;
@@ -281,7 +281,7 @@ contract HumanResourcesTest is TestUtil {
         _withdrawSalaryAndAssertEthPayout(alice, 100e6);
     }
 
-    function test_3I_UnpaidSalaryRepricesAtCurrentOraclePrice() public {
+    function test_UnpaidSalaryRepricesAtCurrentOraclePrice() public {
         _registerEmployee(alice, WEEKLY_SALARY_USD18);
         skip(1 days);
         _switchCurrency(alice);
@@ -296,8 +296,8 @@ contract HumanResourcesTest is TestUtil {
         assertEq(hr.salaryAvailable(alice), 100e6);
     }
 
-    // 4. Real oracle and AMM integration.
-    function test_4A_ActualChainlinkAnswerAndDecimalScaling() public {
+    // Real oracle and AMM integration.
+    function test_ActualChainlinkAnswerAndDecimalScaling() public {
         _registerEmployee(alice, WEEKLY_SALARY_USD18);
         skip(1 days + 1 seconds);
         _switchCurrency(alice);
@@ -305,7 +305,7 @@ contract HumanResourcesTest is TestUtil {
         assertEq(hr.salaryAvailable(alice), _expectedEthForUsd18(usd18));
     }
 
-    function test_4C_AdverseOraclePriceRevertsRealSwapAndRollsBack() public {
+    function test_AdverseOraclePriceRevertsRealSwapAndRollsBack() public {
         _prepareFundedOneDaySalary({employee: alice, ethMode: true});
         (, int256 actualPrice,,,) = Util.ETH_USDC.latestRoundData();
         assertGt(actualPrice, 0);
@@ -319,8 +319,8 @@ contract HumanResourcesTest is TestUtil {
         _assertPaymentStateUnchanged(alice, beforeState);
     }
 
-    // 5. Public views and independent employee records.
-    function test_5A_PublicSalaryViewsForKnownAndUnknownAddresses() public {
+    // Public views and independent employee records.
+    function test_PublicSalaryViewsForKnownAndUnknownAddresses() public {
         _registerEmployee(alice, WEEKLY_SALARY_USD18);
         skip(1 days);
 
@@ -331,7 +331,7 @@ contract HumanResourcesTest is TestUtil {
         assertEq(hr.salaryAvailable(bob), 0);
     }
 
-    function test_5B_ActiveCountAndEmployeeIndependence() public {
+    function test_ActiveCountAndEmployeeIndependence() public {
         _assertActiveEmployeeCountAsOutsider(0);
         _registerEmployee(alice, WEEKLY_SALARY_USD18);
         _assertActiveEmployeeCountAsOutsider(1);
@@ -358,7 +358,7 @@ contract HumanResourcesTest is TestUtil {
         assertEq(hr.salaryAvailable(bob), 200e6);
     }
 
-    function test_5C_PublicMetadataForKnownAndUnknownAddresses() public {
+    function test_PublicMetadataForKnownAndUnknownAddresses() public {
         uint256 registeredAt = vm.getBlockTimestamp();
         _registerEmployee(alice, WEEKLY_SALARY_USD18);
 
@@ -375,8 +375,8 @@ contract HumanResourcesTest is TestUtil {
         assertEq(terminated, 0);
     }
 
-    // Optional extras: small regressions rather than the full audit campaign.
-    function test_X1_RejectedEthRollsBackRealSwap() public {
+    // Payment failures, rounding, and arithmetic regressions.
+    function test_RejectedEthRollsBackRealSwap() public {
         EmployeeReceiver receiver = new EmployeeReceiver({target: hr, rejectEthPayment: true});
         _prepareFundedOneDaySalary({employee: address(receiver), ethMode: true});
         PaymentSnapshot memory beforeState = _snapshotPaymentState(address(receiver));
@@ -388,7 +388,7 @@ contract HumanResourcesTest is TestUtil {
         assertEq(receiver.receiveCalls(), 0);
     }
 
-    function test_X2_InsufficientFundingPreservesDebtForBothCurrencies() public {
+    function test_InsufficientFundingPreservesDebtForBothCurrencies() public {
         _registerEmployee(alice, WEEKLY_SALARY_USD18);
         _registerEmployee(bob, WEEKLY_SALARY_USD18);
         _switchCurrency(bob);
@@ -407,7 +407,7 @@ contract HumanResourcesTest is TestUtil {
         _withdrawSalaryAndAssertEthPayout(bob, 100e6);
     }
 
-    function test_X3_RemainderSurvivesPayoutAndAppearsAsEthDust() public {
+    function test_RemainderSurvivesPayoutAndAppearsAsEthDust() public {
         uint256 usd18Remainder = 123456789; // Less than one native USDC unit (1e12 USD18).
         _registerEmployee(alice, 100e18 + usd18Remainder);
         skip(1 weeks);
@@ -424,7 +424,7 @@ contract HumanResourcesTest is TestUtil {
         assertEq(hr.salaryAvailable(alice), expectedEthDust);
     }
 
-    function testFuzz_X4_OrdinaryAccrualInBothCurrencies(uint96 rawSalary, uint32 rawElapsed) public {
+    function testFuzz_OrdinaryAccrualInBothCurrencies(uint96 rawSalary, uint32 rawElapsed) public {
         uint256 salary = bound(uint256(rawSalary), 0, 1_000_000e18);
         uint256 elapsed = bound(uint256(rawElapsed), 0, 52 weeks);
         _registerEmployee(alice, salary);
@@ -436,7 +436,7 @@ contract HumanResourcesTest is TestUtil {
         assertEq(hr.salaryAvailable(alice), usd18 / 2000);
     }
 
-    function test_X5_LargeAccrualAvoidsIntermediateOverflow() public {
+    function test_LargeAccrualAvoidsIntermediateOverflow() public {
         uint256 salary = type(uint256).max / 2;
         _registerEmployee(alice, salary);
         skip(3 seconds);
@@ -445,7 +445,7 @@ contract HumanResourcesTest is TestUtil {
         assertEq(hr.salaryAvailable(alice), usd18 / USD18_PER_USDC_UNIT);
     }
 
-    function test_X5_LargeOracleConversionAvoidsIntermediateOverflow() public {
+    function test_LargeOracleConversionAvoidsIntermediateOverflow() public {
         uint256 usd18 = type(uint256).max / 1e8 + 1;
         _registerEmployee(alice, usd18);
         skip(1 weeks);
